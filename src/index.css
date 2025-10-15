@@ -1,0 +1,48 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Light mode - Pastel Delight */
+  :root {
+    --background: 0 0% 100%;
+    --pastel-background: 16 100% 98%;
+    --pastel-card: 0 0% 100%;
+    --pastel-primary: 8 100% 77%;
+    --pastel-accent: 37 100% 82%;
+    --pastel-success: 150 55% 79%;
+    --pastel-warning: 358 100% 86%;
+    --pastel-text-primary: 0 0% 18%;
+    --pastel-text-secondary: 0 0% 42%;
+  }
+
+  /* Dark mode - Midnight Bloom */
+  .dark {
+    --background: 222 7% 11%;
+    --midnight-background: 224 5% 11%;
+    --midnight-card: 225 3% 16%;
+    --midnight-primary: 10 100% 72%;
+    --midnight-accent: 36 100% 74%;
+    --midnight-success: 151 76% 64%;
+    --midnight-warning: 358 100% 75%;
+    --midnight-text-primary: 0 0% 97%;
+    --midnight-text-secondary: 220 2% 67%;
+  }
+  
+  /* Global transition for all elements to prevent flashing */
+  *, *::before, *::after {
+    transition: background-color 300ms ease, 
+                color 300ms ease,
+                border-color 300ms ease,
+                fill 300ms ease,
+                stroke 300ms ease,
+                opacity 300ms ease,
+                box-shadow 300ms ease;
+  }
+
+  /* Adding a specific class we can use to disable transitions when needed */
+  .no-transition, .no-transition * {
+    transition: none !important;
+  }
+}
