@@ -8,8 +8,12 @@ const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
 const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'];
 const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
 
-const CalendarComponent = ({ onNavigate }) => {
-  const [darkMode, setDarkMode] = useState(false);
+const CalendarComponent = ({ darkMode = false }) => {
+  // Custom navigation function
+  const navigateTo = (view) => {
+    const event = new CustomEvent('navigate', { detail: view });
+    window.dispatchEvent(event);
+  };
   const [events, setEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -42,10 +46,7 @@ const CalendarComponent = ({ onNavigate }) => {
       }
     };
 
-    // Check user preference for dark mode
-    const isDarkMode = localStorage.getItem('darkMode') === 'true' ||
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setDarkMode(isDarkMode);
+    // We now receive darkMode as a prop from App.jsx
     
     initializeGapi();
   }, []);
@@ -286,14 +287,12 @@ const CalendarComponent = ({ onNavigate }) => {
         <div className="max-w-5xl mx-auto">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 md:gap-3">
-              {onNavigate && (
-                <button 
-                  onClick={() => onNavigate('dashboard')} 
-                  className={`p-1.5 md:p-2 rounded-lg ${darkMode ? 'hover:bg-midnight-primary/10 text-midnight-textPrimary' : 'hover:bg-pastel-primary/10 text-pastel-textPrimary'}`}
-                >
-                  <ArrowLeft size={18} />
-                </button>
-              )}
+              <button 
+                onClick={() => navigateTo('dashboard')} 
+                className={`p-1.5 md:p-2 rounded-lg ${darkMode ? 'hover:bg-midnight-primary/10 text-midnight-textPrimary' : 'hover:bg-pastel-primary/10 text-pastel-textPrimary'}`}
+              >
+                <ArrowLeft size={18} />
+              </button>
               <h1 className={`text-lg md:text-2xl font-bold flex items-center gap-2 ${darkMode ? 'text-midnight-textPrimary' : 'text-pastel-textPrimary'}`}>
                 <Calendar size={20} className="hidden md:inline" />
                 Calendar

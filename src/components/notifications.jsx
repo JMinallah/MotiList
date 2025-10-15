@@ -15,8 +15,12 @@ import {
   Search
 } from 'lucide-react';
 
-const Notifications = ({ onNavigate }) => {
-  const [darkMode, setDarkMode] = useState(false);
+const Notifications = ({ darkMode = false }) => {
+  // Custom navigation function
+  const navigateTo = (view) => {
+    const event = new CustomEvent('navigate', { detail: view });
+    window.dispatchEvent(event);
+  };
   const [notifications, setNotifications] = useState([]);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,10 +36,7 @@ const Notifications = ({ onNavigate }) => {
 
   // Generate mock notifications
   useEffect(() => {
-    // Check user preference for dark mode
-    const isDarkMode = localStorage.getItem('darkMode') === 'true' ||
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setDarkMode(isDarkMode);
+    // We now receive darkMode as a prop from App.jsx
     
     // Generate sample notifications
     const sampleNotifications = [
@@ -238,7 +239,7 @@ const Notifications = ({ onNavigate }) => {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
               <button 
-                onClick={() => onNavigate('dashboard')} 
+                onClick={() => navigateTo('dashboard')} 
                 className={`p-2 rounded-lg ${darkMode ? 'hover:bg-midnight-primary/10 text-midnight-textPrimary' : 'hover:bg-pastel-primary/10 text-pastel-textPrimary'}`}
               >
                 <ArrowLeft size={20} />

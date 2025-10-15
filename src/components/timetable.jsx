@@ -19,8 +19,12 @@ const TIME_SLOTS = [
   '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
 ];
 
-const Timetable = ({ onNavigate }) => {
-  const [darkMode, setDarkMode] = useState(false);
+const Timetable = ({ darkMode = false }) => {
+  // Custom navigation function
+  const navigateTo = (view) => {
+    const event = new CustomEvent('navigate', { detail: view });
+    window.dispatchEvent(event);
+  };
   const [showModal, setShowModal] = useState(false);
   const [timetableEvents, setTimetableEvents] = useState([]);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -37,12 +41,7 @@ const Timetable = ({ onNavigate }) => {
     color: '#3B82F6' // Default blue color
   });
 
-  useEffect(() => {
-    // Check user preference for dark mode
-    const isDarkMode = localStorage.getItem('darkMode') === 'true' ||
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setDarkMode(isDarkMode);
-    
+  useEffect(() => {    
     // Load saved timetable events
     const savedEvents = localStorage.getItem('timetableEvents');
     if (savedEvents) {
@@ -246,14 +245,12 @@ const Timetable = ({ onNavigate }) => {
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 md:gap-3">
-              {onNavigate && (
-                <button 
-                  onClick={() => onNavigate('dashboard')} 
-                  className={`p-1.5 md:p-2 rounded-lg ${darkMode ? 'hover:bg-midnight-primary/10 text-midnight-textPrimary' : 'hover:bg-pastel-primary/10 text-pastel-textPrimary'}`}
-                >
-                  <ArrowLeft size={18} />
-                </button>
-              )}
+              <button 
+                onClick={() => navigateTo('dashboard')} 
+                className={`p-1.5 md:p-2 rounded-lg ${darkMode ? 'hover:bg-midnight-primary/10 text-midnight-textPrimary' : 'hover:bg-pastel-primary/10 text-pastel-textPrimary'}`}
+              >
+                <ArrowLeft size={18} />
+              </button>
               <h1 className={`text-lg md:text-2xl font-bold flex items-center gap-2 ${darkMode ? 'text-midnight-textPrimary' : 'text-pastel-textPrimary'}`}>
                 <Calendar size={20} className="hidden md:inline" />
                 Timetable

@@ -17,8 +17,12 @@ import {
   Save,
 } from 'lucide-react';
 
-const Settings = ({ onNavigate }) => {
-  const [darkMode, setDarkMode] = useState(false);
+const Settings = ({ darkMode = false, toggleDarkMode }) => {
+  // Custom navigation function
+  const navigateTo = (view) => {
+    const event = new CustomEvent('navigate', { detail: view });
+    window.dispatchEvent(event);
+  };
   const [notifications, setNotifications] = useState(true);
   const [language, setLanguage] = useState('english');
   const [notificationTime, setNotificationTime] = useState('1hour');
@@ -58,9 +62,7 @@ const Settings = ({ onNavigate }) => {
 
   useEffect(() => {
     // Load user preferences
-    const isDarkMode = localStorage.getItem('darkMode') === 'true' ||
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setDarkMode(isDarkMode);
+    // darkMode is now received as a prop
     
     const notifPref = localStorage.getItem('notificationsEnabled');
     if (notifPref !== null) {
@@ -78,18 +80,9 @@ const Settings = ({ onNavigate }) => {
     }
   }, []);
 
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem('darkMode', newMode);
-    
-    if (newMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    
+  // Use the toggleDarkMode function passed as a prop
+  const handleDarkModeToggle = () => {
+    toggleDarkMode();
     showNotification('Theme updated successfully');
   };
 
@@ -153,7 +146,7 @@ const Settings = ({ onNavigate }) => {
                 </div>
                 
                 <button 
-                  onClick={toggleDarkMode}
+                  onClick={handleDarkModeToggle}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${darkMode ? 'bg-midnight-primary' : 'bg-gray-300'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -580,7 +573,7 @@ const Settings = ({ onNavigate }) => {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
               <button 
-                onClick={() => onNavigate('dashboard')} 
+                onClick={() => navigateTo('dashboard')} 
                 className={`p-2 rounded-lg ${darkMode ? 'hover:bg-midnight-primary/10 text-midnight-textPrimary' : 'hover:bg-pastel-primary/10 text-pastel-textPrimary'}`}
               >
                 <ArrowLeft size={20} />
@@ -593,7 +586,7 @@ const Settings = ({ onNavigate }) => {
             
             <div className="flex items-center gap-2">
               <button 
-                onClick={toggleDarkMode}
+                onClick={handleDarkModeToggle}
                 className={`p-2 rounded-lg ${darkMode ? 'text-midnight-textSecondary hover:text-midnight-textPrimary' : 'text-pastel-textSecondary hover:text-pastel-textPrimary'}`}
               >
                 {darkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -632,7 +625,7 @@ const Settings = ({ onNavigate }) => {
                 
                 <li>
                   <button 
-                    onClick={() => onNavigate('dashboard')}
+                    onClick={() => navigateTo('dashboard')}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg ${darkMode ? 'text-midnight-textSecondary hover:text-midnight-textPrimary' : 'text-pastel-textSecondary hover:text-pastel-textPrimary'}`}
                   >
                     <LogOut size={20} />
