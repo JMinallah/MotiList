@@ -1,11 +1,18 @@
 import './App.css'
 import { useState, useEffect, useCallback } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import Dashboard from './components/dashboard'
 import CalendarComponent from './components/calender'
 import Timetable from './components/timetable'
 import Notifications from './components/notifications'
 import Settings from './components/settings'
+import Login from './components/Login'
+import { AuthProvider } from './context/AuthProvider'
+import ProtectedRoute from './components/ProtectedRoute'
+import { signOut } from 'firebase/auth';
+import { auth } from './firebase';
+import useAuth from './context/useAuth';
 import { 
   Sun, 
   Moon, 
@@ -16,16 +23,19 @@ import {
   Calendar, 
   BellRing, 
   Menu,
-  X
+  X,
+  LogOut
 } from 'lucide-react'
 
 // Get Google Client ID from environment variables
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-function App() {
+// Main layout component that includes sidebar and content area
+const MainLayout = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { currentUser } = useAuth();
   
   // Check user preference for dark mode
   useEffect(() => {
@@ -40,10 +50,27 @@ function App() {
   
   // Toggle dark mode
   const toggleDarkMode = () => {
+    // Apply a single, smooth transition for all themed elements
+    document.body.classList.add('theme-transition');
+    
     const newDarkMode = !darkMode;
     setDarkMode(newDarkMode);
     document.documentElement.classList.toggle('dark');
     localStorage.setItem('darkMode', newDarkMode);
+    
+    // Remove transition class after transition completes to prevent affecting other animations
+    setTimeout(() => {
+      document.body.classList.remove('theme-transition');
+    }, 300);
+  };
+
+  // Logout function
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   // Toggle mobile sidebar
@@ -113,24 +140,31 @@ function App() {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <div className={`min-h-screen flex ${darkMode ? 'bg-midnight-background' : 'bg-pastel-background'}`}>
+      <div className={`min-h-screen flex theme-transition ${darkMode ? 'bg-midnight-background' : 'bg-pastel-background'}`}>
         {/* Sidebar for larger screens */}
-        <aside className={`fixed inset-y-0 left-0 z-20 w-60 transform transition-transform duration-300 
+        <aside className={`fixed inset-y-0 left-0 z-20 w-60 transform transition-transform theme-transition
           ${darkMode ? 'bg-midnight-card' : 'bg-pastel-card'} shadow-lg overflow-x-hidden overflow-y-auto
           md:translate-x-0 md:fixed md:h-screen md:w-60 md:flex md:flex-col
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         >
           {/* Sidebar header */}
-          <div className={`flex justify-between items-center p-4 ${darkMode ? 'border-midnight-shadow' : 'border-pastel-shadow'} border-b`}>
-            <h1 className={`text-2xl font-bold ${darkMode ? 'text-midnight-textPrimary' : 'text-pastel-textPrimary'}`}>
-              MotiList
-            </h1>
-            <button 
-              onClick={toggleSidebar}
-              className={`md:hidden p-2 rounded-full ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}
-            >
-              <X size={20} />
-            </button>
+          <div className={`flex flex-col p-4 ${darkMode ? 'border-midnight-shadow' : 'border-pastel-shadow'} border-b`}>
+            <div className="flex justify-between items-center">
+              <h1 className={`text-2xl font-bold ${darkMode ? 'text-midnight-textPrimary' : 'text-pastel-textPrimary'}`}>
+                MotiList
+              </h1>
+              <button 
+                onClick={toggleSidebar}
+                className={`md:hidden p-2 rounded-full ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {currentUser && (
+              <div className={`mt-2 text-sm ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                {currentUser.email || currentUser.displayName}
+              </div>
+            )}
           </div>
           
           {/* Navigation links */}
@@ -140,7 +174,7 @@ function App() {
                 <li key={index}>
                   <button 
                     onClick={() => handleNavigate(item.view)}
-                    className={`flex items-center gap-2 px-2 py-3 rounded-lg w-full text-left
+                    className={`flex items-center gap-2 px-2 py-3 rounded-lg w-full text-left theme-transition
                     ${item.active 
                       ? `${darkMode ? 'bg-midnight-primary/10 text-midnight-primary' : 'bg-pastel-primary/10 text-pastel-primary'}`
                       : `${darkMode ? 'text-midnight-textSecondary hover:text-midnight-textPrimary' : 'text-pastel-textSecondary hover:text-pastel-textPrimary'}`
@@ -154,14 +188,22 @@ function App() {
             </ul>
           </nav>
           
-          {/* Sidebar footer with theme toggle */}
-          <div className={`p-4 ${darkMode ? 'border-midnight-shadow' : 'border-pastel-shadow'} border-t`}>
+          {/* Sidebar footer with theme toggle and logout */}
+          <div className={`p-4 ${darkMode ? 'border-midnight-shadow' : 'border-pastel-shadow'} border-t space-y-2`}>
             <button 
               onClick={toggleDarkMode}
               className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg ${darkMode ? 'bg-midnight-primary/10 text-midnight-primary' : 'bg-pastel-primary/10 text-pastel-primary'}`}
             >
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
               <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+            
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-red-500 hover:bg-red-500/10"
+            >
+              <LogOut size={20} />
+              <span>Logout</span>
             </button>
           </div>
         </aside>
@@ -175,9 +217,9 @@ function App() {
         )}
 
         {/* Main content area */}
-        <div className="flex-1 flex flex-col md:ml-60">
+        <div className="flex-1 flex flex-col md:ml-60 theme-transition">
           {/* Header for mobile */}
-          <header className={`flex justify-between items-center p-4 ${darkMode ? 'bg-midnight-card' : 'bg-pastel-card'} shadow-sm md:shadow-none`}>
+          <header className={`flex justify-between items-center p-4 theme-transition ${darkMode ? 'bg-midnight-card' : 'bg-pastel-card'} shadow-sm md:shadow-none`}>
             <div className="flex items-center gap-3">
               {/* Menu button (mobile only) */}
               <button 
@@ -205,16 +247,45 @@ function App() {
               >
                 <SettingsIcon size={20} />
               </button>
+              <button 
+                onClick={handleLogout}
+                className="p-2 rounded-full text-red-500 hover:bg-red-500/10"
+              >
+                <LogOut size={20} />
+              </button>
             </div>
           </header>
 
           {/* Main Content Area */}
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto theme-transition">
             {renderView()}
           </main>
         </div>
       </div>
     </GoogleOAuthProvider>
+  );
+}
+
+// Main App Component
+function App() {
+  // Get dark mode preference from local storage
+  const isDarkMode = localStorage.getItem('darkMode') === 'true' || 
+    window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+  return (
+    <Router>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login darkMode={isDarkMode} />} />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </Router>
   );
 }
 

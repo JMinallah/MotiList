@@ -18,11 +18,9 @@ import {
   updateTask as fbUpdateTask, 
   deleteTask as fbDeleteTask,
   toggleTaskComplete as fbToggleTaskComplete,
-  getCurrentUser,
-  onAuthChange,
   logOut
 } from '../firebaseUtils';
-import AuthForm from './AuthForm';
+import useAuth from '../context/useAuth';
 
 const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
   const [tasks, setTasks] = useState([]);
@@ -78,9 +76,8 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
     return targetDate.toISOString().split('T')[0];
   };
   
-  // Current user state
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Use Auth context for user state
+  const { currentUser, isAuthenticated } = useAuth();
   
   // Load tasks from Firebase using useCallback - defined before it's used in useEffect
   const loadTasks = useCallback(async (userId) => {
@@ -138,22 +135,14 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
     }
   }, []);
   
-  // Set up auth state listener
+  // Load tasks when user is authenticated
   useEffect(() => {
-    const unsubscribe = onAuthChange((user) => {
-      if (user) {
-        setCurrentUser(user);
-        setIsAuthenticated(true);
-        loadTasks(user.uid);
-      } else {
-        setCurrentUser(null);
-        setIsAuthenticated(false);
-        setTasks([]);
-      }
-    });
-    
-    return () => unsubscribe();
-  }, [loadTasks]);
+    if (currentUser) {
+      loadTasks(currentUser.uid);
+    } else {
+      setTasks([]);
+    }
+  }, [currentUser, loadTasks]);
   
   // Load tasks when component mounts or when currentView changes to dashboard
   useEffect(() => {
@@ -555,12 +544,12 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
           </button>
           
           {/* Task Title */}
-          <p className={`flex-1 ${
+          <div className={`flex-1 ${
             task.completed 
               ? (darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary') + ' line-through'
               : darkMode ? 'text-midnight-textPrimary' : 'text-pastel-textPrimary'
           }`}>
-            {task.title}
+            <p>{task.title}</p>
             <div className="flex flex-wrap gap-1 mt-1">
               {/* Source badge */}
               {task.source !== 'dashboard' && (
@@ -582,7 +571,7 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
                 </span>
               )}
             </div>
-          </p>
+          </div>
           
           {/* Task Due Time */}
           <div className="flex items-center gap-1.5">
@@ -658,13 +647,8 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
             Please sign in to access your tasks and manage your schedule.
           </p>
           
-          <AuthForm darkMode={darkMode} onAuthenticated={() => {
-            // This will be called when authentication is successful
-            const user = getCurrentUser();
-            if (user) {
-              loadTasks(user.uid);
-            }
-          }} />
+          {/* Using our updated AuthForm that handles navigation internally */}
+          <AuthForm darkMode={darkMode} />
         </div>
       ) : (
         <div className="max-w-5xl mx-auto">

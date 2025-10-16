@@ -1,1 +1,24 @@
+/* App.css */
 
+/* Consistent transitions for theme switching */
+.theme-transition {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* Immediate transitions (no animation) for specific elements */
+.no-transition {
+  transition: none !important;
+}
+
+/* Smoother text color transitions */
+.text-transition {
+  transition: color 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Optimize performance by using hardware acceleration where appropriate */
+.hardware-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}

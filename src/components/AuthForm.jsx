@@ -1,12 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { signInWithEmail, signInWithGoogle, signUpWithEmail } from '../firebaseUtils';
+import useAuth from '../context/useAuth';
 
-const AuthForm = ({ darkMode, onAuthenticated }) => {
+const AuthForm = ({ darkMode }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  
+  // Redirect if already logged in using useEffect
+  useEffect(() => {
+    if (currentUser) {
+      navigate('/');
+    }
+  }, [currentUser, navigate]);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,7 +30,7 @@ const AuthForm = ({ darkMode, onAuthenticated }) => {
       } else {
         await signUpWithEmail(email, password);
       }
-      onAuthenticated();
+      navigate('/');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -33,7 +44,7 @@ const AuthForm = ({ darkMode, onAuthenticated }) => {
     
     try {
       await signInWithGoogle();
-      onAuthenticated();
+      navigate('/');
     } catch (err) {
       setError(err.message);
     } finally {

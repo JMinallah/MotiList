@@ -4,6 +4,13 @@
 @tailwind utilities;
 
 @layer base {
+  /* Global transition for theme changes */
+  * {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-duration: 300ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
   /* Light mode - Pastel Delight */
   :root {
     --background: 0 0% 100%;
