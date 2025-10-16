@@ -115,9 +115,9 @@ function App() {
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <div className={`min-h-screen flex ${darkMode ? 'bg-midnight-background' : 'bg-pastel-background'}`}>
         {/* Sidebar for larger screens */}
-        <aside className={`fixed inset-y-0 left-0 z-20 w-64 transform transition-transform duration-300 
-          ${darkMode ? 'bg-midnight-card' : 'bg-pastel-card'} shadow-lg 
-          md:translate-x-0 md:static md:w-64 md:flex md:flex-col
+        <aside className={`fixed inset-y-0 left-0 z-20 w-60 transform transition-transform duration-300 
+          ${darkMode ? 'bg-midnight-card' : 'bg-pastel-card'} shadow-lg overflow-x-hidden overflow-y-auto
+          md:translate-x-0 md:fixed md:h-screen md:w-60 md:flex md:flex-col
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         >
           {/* Sidebar header */}
@@ -134,13 +134,13 @@ function App() {
           </div>
           
           {/* Navigation links */}
-          <nav className="flex-1 py-4">
-            <ul>
+          <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
+            <ul className="space-y-1 px-1">
               {navItems.map((item, index) => (
                 <li key={index}>
                   <button 
                     onClick={() => handleNavigate(item.view)}
-                    className={`flex items-center gap-3 px-6 py-3 mx-2 rounded-lg w-full text-left
+                    className={`flex items-center gap-2 px-2 py-3 rounded-lg w-full text-left
                     ${item.active 
                       ? `${darkMode ? 'bg-midnight-primary/10 text-midnight-primary' : 'bg-pastel-primary/10 text-pastel-primary'}`
                       : `${darkMode ? 'text-midnight-textSecondary hover:text-midnight-textPrimary' : 'text-pastel-textSecondary hover:text-pastel-textPrimary'}`
@@ -158,7 +158,7 @@ function App() {
           <div className={`p-4 ${darkMode ? 'border-midnight-shadow' : 'border-pastel-shadow'} border-t`}>
             <button 
               onClick={toggleDarkMode}
-              className={`flex items-center gap-2 w-full p-2 rounded-lg ${darkMode ? 'bg-midnight-primary/10 text-midnight-primary' : 'bg-pastel-primary/10 text-pastel-primary'}`}
+              className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg ${darkMode ? 'bg-midnight-primary/10 text-midnight-primary' : 'bg-pastel-primary/10 text-pastel-primary'}`}
             >
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
               <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
@@ -175,7 +175,7 @@ function App() {
         )}
 
         {/* Main content area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col md:ml-60">
           {/* Header for mobile */}
           <header className={`flex justify-between items-center p-4 ${darkMode ? 'bg-midnight-card' : 'bg-pastel-card'} shadow-sm md:shadow-none`}>
             <div className="flex items-center gap-3">
@@ -209,7 +209,7 @@ function App() {
           </header>
 
           {/* Main Content Area */}
-          <main className="flex-1">
+          <main className="flex-1 overflow-auto">
             {renderView()}
           </main>
         </div>

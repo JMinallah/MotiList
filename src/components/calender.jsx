@@ -28,45 +28,8 @@ const CalendarComponent = ({ darkMode = false }) => {
   });
   const [gapiInitialized, setGapiInitialized] = useState(false);
 
-  // Initialize Google API client
-  useEffect(() => {
-    const initializeGapi = async () => {
-      try {
-        await gapi.load('client:auth2', () => {
-          gapi.client.init({
-            apiKey: API_KEY,
-            discoveryDocs: DISCOVERY_DOCS,
-          }).then(() => {
-            setGapiInitialized(true);
-            checkAuthStatus();
-          });
-        });
-      } catch (error) {
-        console.error('Error initializing GAPI:', error);
-      }
-    };
-
-    // We now receive darkMode as a prop from App.jsx
-    
-    initializeGapi();
-  }, []);
-
-  // Check if user is authenticated with Google
-  const checkAuthStatus = useCallback(() => {
-    const tokenExists = localStorage.getItem('googleAccessToken');
-    const tokenExpiry = localStorage.getItem('googleTokenExpiry');
-    
-    const isValid = tokenExists && tokenExpiry && new Date().getTime() < parseInt(tokenExpiry);
-    
-    setIsAuthenticated(isValid);
-    
-    if (isValid && gapiInitialized) {
-      fetchEvents();
-    }
-  }, [gapiInitialized]);
-
-  // Fetch events from Google Calendar
-  const fetchEvents = async () => {
+  // Fetch events from Google Calendar - define this first to avoid circular dependency issues
+  const fetchEvents = useCallback(async () => {
     if (!gapiInitialized) return;
     
     setIsLoading(true);
@@ -118,7 +81,44 @@ const CalendarComponent = ({ darkMode = false }) => {
     }
     
     setIsLoading(false);
-  };
+  }, [gapiInitialized, currentDate]);
+
+  // Check if user is authenticated with Google
+  const checkAuthStatus = useCallback(() => {
+    const tokenExists = localStorage.getItem('googleAccessToken');
+    const tokenExpiry = localStorage.getItem('googleTokenExpiry');
+    
+    const isValid = tokenExists && tokenExpiry && new Date().getTime() < parseInt(tokenExpiry);
+    
+    setIsAuthenticated(isValid);
+    
+    if (isValid && gapiInitialized) {
+      fetchEvents();
+    }
+  }, [gapiInitialized, fetchEvents]);
+
+  // Initialize Google API client
+  useEffect(() => {
+    const initializeGapi = async () => {
+      try {
+        await gapi.load('client:auth2', () => {
+          gapi.client.init({
+            apiKey: API_KEY,
+            discoveryDocs: DISCOVERY_DOCS,
+          }).then(() => {
+            setGapiInitialized(true);
+            checkAuthStatus();
+          });
+        });
+      } catch (error) {
+        console.error('Error initializing GAPI:', error);
+      }
+    };
+
+    // We now receive darkMode as a prop from App.jsx
+    
+    initializeGapi();
+  }, [checkAuthStatus]);
 
   // Handle Google OAuth login
   const login = useGoogleLogin({
