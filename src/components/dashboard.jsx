@@ -26,6 +26,7 @@ import {
   logOut
 } from '../firebaseUtils';
 import useAuth from '../context/useAuth';
+import AIAssistant from './AIAssistant';
 
 const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
   const [tasks, setTasks] = useState([]);
@@ -1292,6 +1293,9 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
           </div>
         </div>
       )}
+      
+      {/* AI Assistant */}
+      <AIAssistant darkMode={darkMode} />
       
       {/* Notification */}
       {notification && (

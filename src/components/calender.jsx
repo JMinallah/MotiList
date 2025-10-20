@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Calendar, Clock, LogIn, Plus, RefreshCw, Settings, Trash, ArrowLeft } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { gapi } from 'gapi-script';
+import AIAssistant from './AIAssistant';
 
 // Google API configuration
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
@@ -617,6 +618,9 @@ const CalendarComponent = ({ darkMode = false }) => {
           </div>
         </div>
       )}
+      
+      {/* AI Assistant */}
+      <AIAssistant darkMode={darkMode} />
     </div>
   );
 };

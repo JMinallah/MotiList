@@ -23,6 +23,7 @@ import {
   deleteAllTimetableEvents 
 } from '../utils/cleanup.js';
 import useAuth from '../context/useAuth';
+import AIAssistant from './AIAssistant';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TIME_SLOTS = [
@@ -1016,6 +1017,9 @@ const Timetable = ({ darkMode = false }) => {
           </p>
         </div>
       )}
+      
+      {/* AI Assistant */}
+      <AIAssistant darkMode={darkMode} />
     </div>
   );
 };
