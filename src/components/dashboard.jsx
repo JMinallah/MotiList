@@ -8,7 +8,8 @@ import {
   Trash,
   XCircle,
   GripVertical,
-  LogOut
+  LogOut,
+  Edit
 } from 'lucide-react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -18,6 +19,10 @@ import {
   updateTask as fbUpdateTask, 
   deleteTask as fbDeleteTask,
   toggleTaskComplete as fbToggleTaskComplete,
+  batchUpdateTaskOrders,
+  getTimetableEvents,
+  updateTimetableEvent,
+  deleteTimetableEvent,
   logOut
 } from '../firebaseUtils';
 import useAuth from '../context/useAuth';
@@ -25,8 +30,11 @@ import useAuth from '../context/useAuth';
 const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
   const [tasks, setTasks] = useState([]);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showTimetableModal, setShowTimetableModal] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [isReordering, setIsReordering] = useState(false);
   
   // Show notification - defined early so it can be used throughout the component
   const showNotification = (message) => {
@@ -59,6 +67,8 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
   
   // Track if we're editing an existing task
   const [editingTask, setEditingTask] = useState(null);
+  const [editingTimetableEvent, setEditingTimetableEvent] = useState(null);
+  const [editingCalendarEvent, setEditingCalendarEvent] = useState(null);
   
   // Helper function to get current date for day of week
   const getCurrentDateForDay = (dayName) => {
@@ -87,17 +97,17 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
       // Get tasks from Firebase
       const taskData = await getTasks(userId);
       
-      // We'll still incorporate events from localStorage for now
-      // These could be moved to Firebase in a future update
-      const timetableEvents = localStorage.getItem('timetableEvents');
+      // Get timetable events from Firebase
+      const timetableEvents = await getTimetableEvents(userId);
+      
+      // Get calendar events from localStorage (can be migrated later)
       const calendarEvents = localStorage.getItem('calendarEvents');
       
       let allTasks = [...taskData];
       
       // Add timetable events as tasks
-      if (timetableEvents) {
-        const events = JSON.parse(timetableEvents);
-        const timetableTasks = events.map(event => ({
+      if (timetableEvents && timetableEvents.length > 0) {
+        const timetableTasks = timetableEvents.map(event => ({
           id: `timetable-${event.id}`,
           title: event.title,
           dueDate: getCurrentDateForDay(event.day),
@@ -128,43 +138,43 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
         allTasks = [...allTasks, ...calendarTasks];
       }
       
-      setTasks(allTasks);
+      // Remove duplicates based on ID
+      const uniqueTasks = allTasks.reduce((unique, task) => {
+        if (!unique.find(t => t.id === task.id)) {
+          unique.push(task);
+        }
+        return unique;
+      }, []);
+      
+      setTasks(uniqueTasks);
     } catch (error) {
       console.error('Error loading tasks:', error);
       showNotification('Error loading tasks');
     }
   }, []);
   
-  // Load tasks when user is authenticated
+  // Load tasks when user is authenticated or when currentView changes to dashboard
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && currentView === 'dashboard') {
       loadTasks(currentUser.uid);
-    } else {
+    } else if (!currentUser) {
       setTasks([]);
     }
-  }, [currentUser, loadTasks]);
+  }, [currentUser, currentView, loadTasks]);
   
-  // Load tasks when component mounts or when currentView changes to dashboard
+  // Set up periodic refresh to catch any external changes
   useEffect(() => {
-    if (currentView === 'dashboard') {
-      loadTasks();
-    }
-  }, [currentView, loadTasks]);
-  
-  // Initial task loading and periodic refreshes
-  useEffect(() => {
-    loadTasks();
+    if (!currentUser || currentView !== 'dashboard') return;
     
-    // Set up periodic refresh to catch any external changes
     const refreshInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        loadTasks();
+        loadTasks(currentUser.uid);
       }
     }, 30000); // Refresh every 30 seconds when visible
     
     // Clean up
     return () => clearInterval(refreshInterval);
-  }, [loadTasks]);
+  }, [currentUser, currentView, loadTasks]);
   
   // Function to navigate between components (using custom events)
   const handleNavigate = (view) => {
@@ -253,12 +263,21 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
   const editTask = (taskId) => {
     const taskToEdit = tasks.find(task => task.id === taskId);
     
-    if (taskToEdit && taskToEdit.source === 'dashboard') {
+    if (!taskToEdit) {
+      showNotification('Task not found');
+      return;
+    }
+
+    if (taskToEdit.source === 'dashboard') {
       setEditingTask(taskId);
       setNewTask({...taskToEdit});
       setShowTaskModal(true);
-    } else if (taskToEdit) {
-      showNotification(`Cannot edit ${taskToEdit.source} items directly`);
+    } else if (taskToEdit.source === 'timetable') {
+      setEditingTimetableEvent(taskToEdit.sourceData);
+      setShowTimetableModal(true);
+    } else if (taskToEdit.source === 'calendar') {
+      setEditingCalendarEvent(taskToEdit.sourceData);
+      setShowCalendarModal(true);
     }
   };
   
@@ -336,21 +355,34 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
         return;
       }
       
-      // If it's from timetable or calendar, show warning instead of deleting source data
+      // Confirm deletion for non-dashboard items
       if (taskToDelete.source !== 'dashboard') {
-        showNotification(`This ${taskToDelete.source} event is only hidden from tasks. Delete it from ${taskToDelete.source} to remove completely.`);
-        // Just remove from the current view
-        setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
-        return;
+        const confirmDelete = window.confirm(
+          `Delete this ${taskToDelete.source} item permanently? This will remove it from both the task list and the ${taskToDelete.source}.`
+        );
+        
+        if (!confirmDelete) return;
+        
+        // Delete from the source (timetable or calendar)
+        if (taskToDelete.source === 'timetable' && taskToDelete.sourceData) {
+          await deleteTimetableEvent(taskToDelete.sourceData.id);
+          showNotification('Timetable event deleted');
+        } else if (taskToDelete.source === 'calendar' && taskToDelete.sourceData) {
+          // For calendar events, we'll remove from localStorage for now
+          const calendarEvents = JSON.parse(localStorage.getItem('calendarEvents') || '[]');
+          const updatedEvents = calendarEvents.filter(event => event.id !== taskToDelete.sourceData.id);
+          localStorage.setItem('calendarEvents', JSON.stringify(updatedEvents));
+          showNotification('Calendar event deleted');
+        }
+      } else {
+        // If it's a dashboard task (stored in Firebase), delete it from Firebase
+        await fbDeleteTask(taskId);
+        showNotification('Task deleted');
       }
-      
-      // If it's a dashboard task (stored in Firebase), delete it from Firebase
-      await fbDeleteTask(taskId);
       
       // Update local state
       setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
       
-      showNotification('Task deleted');
     } catch (error) {
       console.error('Error deleting task:', error);
       showNotification('Error deleting task: ' + error.message);
@@ -447,7 +479,7 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
       collect: (monitor) => ({
         isDragging: monitor.isDragging(),
       }),
-      canDrag: task.source === 'dashboard', // Only dashboard tasks can be dragged
+      canDrag: true, // All tasks can be dragged for reordering
     });
     
     // Task can receive other dragged tasks
@@ -507,21 +539,22 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
     return (
       <div 
         ref={ref}
-        className={`p-4 rounded-lg border ${
-          isDragging ? 'opacity-50' : ''
-        } ${
-          darkMode 
-            ? 'border-midnight-shadow bg-midnight-background/30' 
-            : 'border-pastel-shadow bg-pastel-background/50'
+        className={`p-4 rounded-lg border transition-all duration-200 ${
+          isDragging 
+            ? 'opacity-50 scale-105 shadow-lg ' + (darkMode ? 'border-midnight-primary bg-midnight-primary/10' : 'border-pastel-primary bg-pastel-primary/10')
+            : darkMode 
+              ? 'border-midnight-shadow bg-midnight-background/30 hover:bg-midnight-background/50' 
+              : 'border-pastel-shadow bg-pastel-background/50 hover:bg-pastel-background/70'
         }`}
       >
         <div className="flex items-center gap-3">
-          {/* Drag handle (only for dashboard tasks) */}
-          {task.source === 'dashboard' && (
-            <div className={`cursor-move ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
-              <GripVertical size={16} />
-            </div>
-          )}
+          {/* Drag handle (for all tasks) */}
+          <div 
+            className={`cursor-move ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}
+            title={task.source === 'dashboard' ? 'Drag to reorder' : `Drag to reorder (${task.source} item)`}
+          >
+            <GripVertical size={16} />
+          </div>
           
           {/* Task Status Indicator */}
           <button
@@ -586,22 +619,19 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
             </span>
             
             <div className="flex items-center">
-              {/* Edit button (only for dashboard tasks) */}
-              {task.source === 'dashboard' && (
-                <button
-                  onClick={() => editTask(task.id)}
-                  className={`p-1 rounded-full hover:bg-opacity-20 ${darkMode ? 'hover:bg-midnight-background text-midnight-textSecondary' : 'hover:bg-pastel-background text-pastel-textSecondary'}`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                </button>
-              )}
+              {/* Edit button (for all task types) */}
+              <button
+                onClick={() => editTask(task.id)}
+                className={`p-1 rounded-full hover:bg-opacity-20 ${darkMode ? 'hover:bg-midnight-background text-midnight-textSecondary' : 'hover:bg-pastel-background text-pastel-textSecondary'}`}
+                title={task.source === 'dashboard' ? 'Edit task' : `Edit ${task.source} item`}
+              >
+                <Edit size={14} />
+              </button>
               
               <button
                 onClick={() => deleteTask(task.id)}
                 className={`p-1 rounded-full hover:bg-opacity-20 ${darkMode ? 'hover:bg-midnight-background text-midnight-textSecondary' : 'hover:bg-pastel-background text-pastel-textSecondary'}`}
+                title="Delete task"
               >
                 <Trash size={14} />
               </button>
@@ -613,26 +643,50 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
   };
   
   // Function to move tasks (for drag and drop)
-  const moveTask = (dragIndex, hoverIndex) => {
-    // Only apply to dashboard tasks
+  const moveTask = async (dragIndex, hoverIndex) => {
+    setIsReordering(true);
+    
     setTasks(prevTasks => {
-      const dashboardTasks = prevTasks.filter(task => task.source === 'dashboard');
-      const otherTasks = prevTasks.filter(task => task.source !== 'dashboard');
+      const allTasks = [...prevTasks];
       
-      // Reorder dashboard tasks
-      const draggedTask = dashboardTasks[dragIndex];
-      const newDashboardTasks = [...dashboardTasks];
+      // Reorder all tasks (regardless of source)
+      const draggedTask = allTasks[dragIndex];
       
       // Remove dragged item
-      newDashboardTasks.splice(dragIndex, 1);
+      allTasks.splice(dragIndex, 1);
       // Add it at the new position
-      newDashboardTasks.splice(hoverIndex, 0, draggedTask);
+      allTasks.splice(hoverIndex, 0, draggedTask);
       
-      // Combine tasks and update localStorage
-      const updatedTasks = [...newDashboardTasks, ...otherTasks];
-      localStorage.setItem('tasks', JSON.stringify(newDashboardTasks));
+      // Only update Firebase order for dashboard tasks
+      const dashboardTasks = allTasks.filter(task => task.source === 'dashboard');
+      if (dashboardTasks.length > 0) {
+        const taskUpdates = dashboardTasks.map((task, index) => ({
+          taskId: task.id,
+          order: index
+        }));
+        
+        // Persist order changes to Firebase (async) - only for dashboard tasks
+        batchUpdateTaskOrders(taskUpdates)
+          .then(() => {
+            setIsReordering(false);
+          })
+          .catch(error => {
+            console.error('Error updating task order:', error);
+            showNotification('Error saving task order');
+            setIsReordering(false);
+          });
+      } else {
+        setIsReordering(false);
+      }
       
-      return updatedTasks;
+      // Save the task display order to localStorage for visual order persistence
+      const taskOrder = allTasks.map(task => ({
+        id: task.id,
+        source: task.source
+      }));
+      localStorage.setItem('taskDisplayOrder', JSON.stringify(taskOrder));
+      
+      return allTasks;
     });
   };
 
@@ -850,7 +904,7 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
           </div>
           
           {/* Task List */}
-          <div className="space-y-3">
+          <div className={`space-y-3 ${isReordering ? 'opacity-75' : ''}`}>
             {tasks.length > 0 ? (
               getFilteredTasks().slice(0, showAllTasks ? getFilteredTasks().length : 5).map((task, index) => (
                 <DraggableTaskItem 
@@ -992,6 +1046,246 @@ const Dashboard = ({ darkMode, currentView = 'dashboard' }) => {
                   disabled={!newTask.title}
                 >
                   {editingTask ? 'Update Task' : 'Add Task'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Edit Timetable Event Modal */}
+      {showTimetableModal && editingTimetableEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-md rounded-xl ${darkMode ? 'bg-midnight-card' : 'bg-pastel-card'} p-6`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-lg font-semibold ${darkMode ? 'text-midnight-textPrimary' : 'text-pastel-textPrimary'}`}>
+                Edit Timetable Event
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowTimetableModal(false);
+                  setEditingTimetableEvent(null);
+                }}
+                className={`p-1 rounded-full ${darkMode ? 'hover:bg-midnight-background text-midnight-textSecondary' : 'hover:bg-pastel-background text-pastel-textSecondary'}`}
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                  Event Title
+                </label>
+                <input
+                  type="text"
+                  value={editingTimetableEvent.title || ''}
+                  onChange={(e) => setEditingTimetableEvent(prev => ({ ...prev, title: e.target.value }))}
+                  className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                  Day
+                </label>
+                <select
+                  value={editingTimetableEvent.day || 'Monday'}
+                  onChange={(e) => setEditingTimetableEvent(prev => ({ ...prev, day: e.target.value }))}
+                  className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                >
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                    Start Time
+                  </label>
+                  <input
+                    type="time"
+                    value={editingTimetableEvent.startTime || '09:00'}
+                    onChange={(e) => setEditingTimetableEvent(prev => ({ ...prev, startTime: e.target.value }))}
+                    className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                    End Time
+                  </label>
+                  <input
+                    type="time"
+                    value={editingTimetableEvent.endTime || '10:00'}
+                    onChange={(e) => setEditingTimetableEvent(prev => ({ ...prev, endTime: e.target.value }))}
+                    className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                  Location (optional)
+                </label>
+                <input
+                  type="text"
+                  value={editingTimetableEvent.location || ''}
+                  onChange={(e) => setEditingTimetableEvent(prev => ({ ...prev, location: e.target.value }))}
+                  className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                  placeholder="Room number, building, etc."
+                />
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button 
+                  onClick={() => {
+                    setShowTimetableModal(false);
+                    setEditingTimetableEvent(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg ${darkMode ? 'text-midnight-textSecondary hover:text-midnight-textPrimary' : 'text-pastel-textSecondary hover:text-pastel-textPrimary'}`}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={async () => {
+                    try {
+                      // Update the timetable event in Firebase
+                      const { id, createdAt: _createdAt, updatedAt: _updatedAt, userId: _userId, ...eventData } = editingTimetableEvent;
+                      await updateTimetableEvent(id, eventData);
+                      
+                      // Reload tasks to reflect the changes
+                      if (currentUser) {
+                        await loadTasks(currentUser.uid);
+                      }
+                      
+                      setShowTimetableModal(false);
+                      setEditingTimetableEvent(null);
+                      showNotification('Timetable event updated');
+                    } catch (error) {
+                      console.error('Error updating timetable event:', error);
+                      showNotification('Error updating event');
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-midnight-primary text-white' : 'bg-pastel-primary text-white'}`}
+                >
+                  Update Event
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Edit Calendar Event Modal */}
+      {showCalendarModal && editingCalendarEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-md rounded-xl ${darkMode ? 'bg-midnight-card' : 'bg-pastel-card'} p-6`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-lg font-semibold ${darkMode ? 'text-midnight-textPrimary' : 'text-pastel-textPrimary'}`}>
+                Edit Calendar Event
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowCalendarModal(false);
+                  setEditingCalendarEvent(null);
+                }}
+                className={`p-1 rounded-full ${darkMode ? 'hover:bg-midnight-background text-midnight-textSecondary' : 'hover:bg-pastel-background text-pastel-textSecondary'}`}
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                  Event Title
+                </label>
+                <input
+                  type="text"
+                  value={editingCalendarEvent.title || ''}
+                  onChange={(e) => setEditingCalendarEvent(prev => ({ ...prev, title: e.target.value }))}
+                  className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={editingCalendarEvent.date || ''}
+                  onChange={(e) => setEditingCalendarEvent(prev => ({ ...prev, date: e.target.value }))}
+                  className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                  Time
+                </label>
+                <input
+                  type="time"
+                  value={editingCalendarEvent.time || '09:00'}
+                  onChange={(e) => setEditingCalendarEvent(prev => ({ ...prev, time: e.target.value }))}
+                  className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                  Priority
+                </label>
+                <select
+                  value={editingCalendarEvent.priority || 'medium'}
+                  onChange={(e) => setEditingCalendarEvent(prev => ({ ...prev, priority: e.target.value }))}
+                  className={`w-full p-2 rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button 
+                  onClick={() => {
+                    setShowCalendarModal(false);
+                    setEditingCalendarEvent(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg ${darkMode ? 'text-midnight-textSecondary hover:text-midnight-textPrimary' : 'text-pastel-textSecondary hover:text-pastel-textPrimary'}`}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={async () => {
+                    try {
+                      // Update the calendar event in localStorage
+                      const calendarEvents = JSON.parse(localStorage.getItem('calendarEvents') || '[]');
+                      const updatedEvents = calendarEvents.map(event => 
+                        event.id === editingCalendarEvent.id ? editingCalendarEvent : event
+                      );
+                      localStorage.setItem('calendarEvents', JSON.stringify(updatedEvents));
+                      
+                      // Reload tasks to reflect the changes
+                      if (currentUser) {
+                        await loadTasks(currentUser.uid);
+                      }
+                      
+                      setShowCalendarModal(false);
+                      setEditingCalendarEvent(null);
+                      showNotification('Calendar event updated');
+                    } catch (error) {
+                      console.error('Error updating calendar event:', error);
+                      showNotification('Error updating event');
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-midnight-primary text-white' : 'bg-pastel-primary text-white'}`}
+                >
+                  Update Event
                 </button>
               </div>
             </div>

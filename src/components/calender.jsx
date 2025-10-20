@@ -523,32 +523,34 @@ const CalendarComponent = ({ darkMode = false }) => {
             <div className="space-y-3 md:space-y-4">
               <div>
                 <label className={`block mb-1 text-xs md:text-sm font-medium ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
-                  Event Title
+                  Event Title*
                 </label>
                 <input
                   type="text"
                   name="title"
                   value={newEvent.title}
                   onChange={handleInputChange}
-                  className={`w-full p-1.5 md:p-2 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                  placeholder="Meeting, Appointment, Task..."
+                  className={`w-full p-3 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                  autoFocus
                 />
               </div>
               
-              <div>
-                <label className={`block mb-1 text-xs md:text-sm font-medium ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
-                  Date
-                </label>
-                <input
-                  type="date"
-                  name="date"
-                  value={newEvent.date}
-                  onChange={handleInputChange}
-                  className={`w-full p-1.5 md:p-2 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
-                />
-              </div>
-              
-              <div className="flex gap-2 md:gap-4">
-                <div className="flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block mb-1 text-xs md:text-sm font-medium ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                    Date*
+                  </label>
+                  <input
+                    type="date"
+                    name="date"
+                    value={newEvent.date}
+                    onChange={handleInputChange}
+                    className={`w-full p-3 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                  />
+                </div>
+                
+                <div>
                   <label className={`block mb-1 text-xs md:text-sm font-medium ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
                     Start Time
                   </label>
@@ -557,36 +559,45 @@ const CalendarComponent = ({ darkMode = false }) => {
                     name="startTime"
                     value={newEvent.startTime}
                     onChange={handleInputChange}
-                    className={`w-full p-1.5 md:p-2 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
-                  />
-                </div>
-                
-                <div className="flex-1">
-                  <label className={`block mb-1 text-xs md:text-sm font-medium ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    name="endTime"
-                    value={newEvent.endTime}
-                    onChange={handleInputChange}
-                    className={`w-full p-1.5 md:p-2 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                    className={`w-full p-3 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
                   />
                 </div>
               </div>
               
-              <div>
-                <label className={`block mb-1 text-xs md:text-sm font-medium ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
-                  Description (optional)
-                </label>
-                <textarea
-                  name="description"
-                  value={newEvent.description}
-                  onChange={handleInputChange}
-                  rows={2}
-                  className={`w-full p-1.5 md:p-2 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
-                />
-              </div>
+              {/* Collapsible Advanced Options */}
+              <details className="group">
+                <summary className={`cursor-pointer text-xs font-medium ${darkMode ? 'text-midnight-textSecondary hover:text-midnight-textPrimary' : 'text-pastel-textSecondary hover:text-pastel-textPrimary'}`}>
+                  <span className="select-none">Advanced Options</span>
+                </summary>
+                <div className="mt-3 space-y-3 pl-2 border-l-2 border-opacity-20 border-current">
+                  <div>
+                    <label className={`block mb-1 text-xs font-medium ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                      End Time (optional)
+                    </label>
+                    <input
+                      type="time"
+                      name="endTime"
+                      value={newEvent.endTime}
+                      onChange={handleInputChange}
+                      className={`w-full p-2 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className={`block mb-1 text-xs font-medium ${darkMode ? 'text-midnight-textSecondary' : 'text-pastel-textSecondary'}`}>
+                      Description (optional)
+                    </label>
+                    <textarea
+                      name="description"
+                      value={newEvent.description}
+                      onChange={handleInputChange}
+                      rows={2}
+                      placeholder="Additional details..."
+                      className={`w-full p-2 text-sm rounded-lg border ${darkMode ? 'bg-midnight-background border-midnight-shadow text-midnight-textPrimary' : 'bg-pastel-background border-pastel-shadow text-pastel-textPrimary'}`}
+                    />
+                  </div>
+                </div>
+              </details>
               
               <div className="flex justify-end gap-2 md:gap-3 pt-2">
                 <button 

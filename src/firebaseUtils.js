@@ -89,6 +89,7 @@ export const getTasks = async (userId) => {
     const tasksQuery = query(
       collection(db, "tasks"),
       where("userId", "==", userId),
+      orderBy("order", "asc"),
       orderBy("dueDate", "asc"),
       orderBy("dueTime", "asc")
     );
@@ -121,6 +122,7 @@ export const addTask = async (taskData) => {
     const taskWithMeta = {
       ...taskData,
       userId,
+      order: taskData.order || Date.now(), // Default order based on creation time
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -198,6 +200,33 @@ export const toggleTaskComplete = async (taskId, isCompleted) => {
     return { id: taskId, completed: isCompleted };
   } catch (error) {
     console.error("Error toggling task completion:", error);
+    throw error;
+  }
+};
+
+// Update task order for drag and drop
+export const updateTaskOrder = async (taskId, order) => {
+  try {
+    const taskRef = doc(db, "tasks", taskId);
+    await updateDoc(taskRef, {
+      order: order,
+      updatedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error("Error updating task order:", error);
+    throw error;
+  }
+};
+
+// Batch update task orders
+export const batchUpdateTaskOrders = async (taskUpdates) => {
+  try {
+    const updatePromises = taskUpdates.map(({ taskId, order }) => 
+      updateTaskOrder(taskId, order)
+    );
+    await Promise.all(updatePromises);
+  } catch (error) {
+    console.error("Error batch updating task orders:", error);
     throw error;
   }
 };
@@ -282,6 +311,76 @@ export const getFilteredTasks = async (userId, filters = {}) => {
     return tasks;
   } catch (error) {
     console.error("Error getting filtered tasks:", error);
+    throw error;
+  }
+};
+
+// ========== TIMETABLE EVENTS FUNCTIONS ==========
+
+// Add a new timetable event
+export const addTimetableEvent = async (userId, eventData) => {
+  try {
+    const docRef = await addDoc(collection(db, "timetableEvents"), {
+      ...eventData,
+      userId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding timetable event:", error);
+    throw error;
+  }
+};
+
+// Get all timetable events for a user
+export const getTimetableEvents = async (userId) => {
+  try {
+    const q = query(
+      collection(db, "timetableEvents"),
+      where("userId", "==", userId),
+      orderBy("day", "asc"),
+      orderBy("startTime", "asc")
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const events = [];
+    
+    querySnapshot.forEach((doc) => {
+      const eventData = doc.data();
+      events.push(formatTaskTimestamps({
+        id: doc.id,
+        ...eventData
+      }));
+    });
+    
+    return events;
+  } catch (error) {
+    console.error("Error getting timetable events:", error);
+    throw error;
+  }
+};
+
+// Update a timetable event
+export const updateTimetableEvent = async (eventId, updateData) => {
+  try {
+    const eventRef = doc(db, "timetableEvents", eventId);
+    await updateDoc(eventRef, {
+      ...updateData,
+      updatedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error("Error updating timetable event:", error);
+    throw error;
+  }
+};
+
+// Delete a timetable event
+export const deleteTimetableEvent = async (eventId) => {
+  try {
+    await deleteDoc(doc(db, "timetableEvents", eventId));
+  } catch (error) {
+    console.error("Error deleting timetable event:", error);
     throw error;
   }
 };
